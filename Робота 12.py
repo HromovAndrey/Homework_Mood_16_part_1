@@ -39,7 +39,7 @@ from sqlalchemy.orm import declarative_base
 from sqlalchemy.sql import text
 import json
 import psycopg2
-
+import sqlite3
 
 
 with open('config.json', 'r') as f:
@@ -51,109 +51,230 @@ db_url = f'postgresql+psycopg2://{db_user}:{db_password}@localhost:5432/Hospital
 engine = create_engine(db_url)
 
 
+def create_database():
+    conn = sqlite3.connect('Hospital.db')
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Salesmen (
+            salesman_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL
+        )
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Customers (
+            customer_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            email TEXT NOT NULL
+        )
+    ''')
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Sales (
+            sale_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sale_amount DECIMAL(10, 2) NOT NULL,
+            salesman_id INTEGER NOT NULL,
+            customer_id INTEGER NOT NULL,
+            FOREIGN KEY (salesman_id) REFERENCES Salesmen(salesman_id),
+            FOREIGN KEY (customer_id) REFERENCES Customers(customer_id)
+        )
+    ''')
+
+    conn.commit()
+    conn.close()
 
 
-def connect():
-    return psycopg2.connect(
-        dbname="Sales",
-        user="your_username",
-        password="your_password",
-        host="localhost"
-    )
+def execute_query(query, params=None):
+    conn = sqlite3.connect('Hospital.db')
+    cursor = conn.cursor()
+    if params:
+        cursor.execute(query, params)
+    else:
+        cursor.execute(query)
+    results = cursor.fetchall()
+    conn.close()
+    return results
 
 
-def display_all_sales(cursor):
-    cursor.execute("SELECT * FROM Sales")
-    for row in cursor.fetchall():
-        print(row)
+def execute_insert_update_delete(query, params):
+    conn = sqlite3.connect('Hospital.db')
+    cursor = conn.cursor()
+    cursor.execute(query, params)
+    conn.commit()
+    conn.close()
 
 
-def display_sales_by_salesman(cursor, salesman_id):
-    cursor.execute("SELECT * FROM Sales WHERE Salesman_ID = %s", (salesman_id,))
-    for row in cursor.fetchall():
-        print(row)
+def display_menu():
+    print("1. Display all Hospital")
+    print("2. Display Hospital of a specific salesman")
+    print("3. Display the maximum Hospital amount")
+    print("4. Display the minimum sale amount")
+    print("5. Display the maximum sale amount for a specific salesman")
+    print("6. Display the minimum sale amount for a specific salesman")
+    print("7. Display the maximum sale amount for a specific customer")
+    print("8. Display the minimum sale amount for a specific customer")
+    print("9. Display the salesman with the maximum total sales amount")
+    print("10. Display the salesman with the minimum total sales amount")
+    print("11. Display the customer with the maximum total purchase amount")
+    print("12. Display the average purchase amount for a specific customer")
+    print("13. Display the average sale amount for a specific salesman")
+    print("14. Insert new data")
+    print("15. Update existing data")
+    print("16. Delete data")
+    print("17. Save results to a file")
+    print("18. Exit")
 
 
-def display_max_sale(cursor):
-    cursor.execute("SELECT * FROM Sales ORDER BY SaleAmount DESC LIMIT 1")
-    print(cursor.fetchone())
-
-
-def display_min_sale(cursor):
-    cursor.execute("SELECT * FROM Sales ORDER BY SaleAmount ASC LIMIT 1")
-    print(cursor.fetchone())
-
-
-def insert_sale(cursor, info, sale_amount, salesman_id, customer_id, sale_date):
-    cursor.execute(
-        "INSERT INTO Sales (INFO, SaleAmount, Salesman_ID, Customer_ID, SaleDate) VALUES (%s, %s, %s, %s, %s)",
-        (info, sale_amount, salesman_id, customer_id, sale_date)
-    )
-
-
-def update_sale(cursor, sale_id, info, sale_amount, salesman_id, customer_id, sale_date):
-    cursor.execute(
-        "UPDATE Sales SET INFO = %s, SaleAmount = %s, Salesman_ID = %s, Customer_ID = %s, SaleDate = %s WHERE ID = %s",
-        (info, sale_amount, salesman_id, customer_id, sale_date, sale_id)
-    )
-
-
-def delete_sale(cursor, sale_id):
-    cursor.execute("DELETE FROM Sales WHERE ID = %s", (sale_id,))
+def save_results_to_file(results, file_path):
+    with open(file_path, 'w') as file:
+        json.dump(results, file, indent=4)
+    print(f"Results saved to {file_path}")
 
 
 def main():
-    conn = connect()
-    cursor = conn.cursor()
+    create_database()
 
     while True:
-        print("1. Display all sales")
-        print("2. Display sales by salesman")
-        print("3. Display maximum sale")
-        print("4. Display minimum sale")
-        print("5. Insert new sale")
-        print("6. Update existing sale")
-        print("7. Delete sale")
-        print("8. Exit")
-        choice = input("Enter your choice: ")
+        display_menu()
+        choice = input("Choose an option: ")
 
         if choice == '1':
-            display_all_sales(cursor)
+            query = "SELECT * FROM Hospital"
+            results = execute_query(query)
+            for row in results:
+                print(row)
         elif choice == '2':
-            salesman_id = int(input("Enter Salesman ID: "))
-            display_sales_by_salesman(cursor, salesman_id)
+            salesman_id = input("Enter salesman ID: ")
+            query = "SELECT * FROM Hospital WHERE salesman_id = ?"
+            results = execute_query(query, (salesman_id,))
+            for row in results:
+                print(row)
         elif choice == '3':
-            display_max_sale(cursor)
+            query = "SELECT * FROM Hospital ORDER BY sale_amount DESC LIMIT 1"
+            results = execute_query(query)
+            for row in results:
+                print(row)
         elif choice == '4':
-            display_min_sale(cursor)
+            query = "SELECT * FROM Hospital ORDER BY sale_amount ASC LIMIT 1"
+            results = execute_query(query)
+            for row in results:
+                print(row)
         elif choice == '5':
-            info = input("Enter sale info: ")
-            sale_amount = float(input("Enter sale amount: "))
-            salesman_id = int(input("Enter Salesman ID: "))
-            customer_id = int(input("Enter Customer ID: "))
-            sale_date = input("Enter sale date (YYYY-MM-DD): ")
-            insert_sale(cursor, info, sale_amount, salesman_id, customer_id, sale_date)
-            conn.commit()
+            salesman_id = input("Enter salesman ID: ")
+            query = "SELECT * FROM Hospital WHERE salesman_id = ? ORDER BY sale_amount DESC LIMIT 1"
+            results = execute_query(query, (salesman_id,))
+            for row in results:
+                print(row)
         elif choice == '6':
-            sale_id = int(input("Enter Sale ID to update: "))
-            info = input("Enter new sale info: ")
-            sale_amount = float(input("Enter new sale amount: "))
-            salesman_id = int(input("Enter new Salesman ID: "))
-            customer_id = int(input("Enter new Customer ID: "))
-            sale_date = input("Enter new sale date (YYYY-MM-DD): ")
-            update_sale(cursor, sale_id, info, sale_amount, salesman_id, customer_id, sale_date)
-            conn.commit()
+            salesman_id = input("Enter salesman ID: ")
+            query = "SELECT * FROM Hospital WHERE salesman_id = ? ORDER BY sale_amount ASC LIMIT 1"
+            results = execute_query(query, (salesman_id,))
+            for row in results:
+                print(row)
         elif choice == '7':
-            sale_id = int(input("Enter Sale ID to delete: "))
-            delete_sale(cursor, sale_id)
-            conn.commit()
+            customer_id = input("Enter customer ID: ")
+            query = "SELECT * FROM Hospital WHERE customer_id = ? ORDER BY sale_amount DESC LIMIT 1"
+            results = execute_query(query, (customer_id,))
+            for row in results:
+                print(row)
         elif choice == '8':
+            customer_id = input("Enter customer ID: ")
+            query = "SELECT * FROM Hospital WHERE customer_id = ? ORDER BY sale_amount ASC LIMIT 1"
+            results = execute_query(query, (customer_id,))
+            for row in results:
+                print(row)
+        elif choice == '9':
+            query = "SELECT salesman_id, SUM(sale_amount) AS total_sales FROM Hospital GROUP BY salesman_id ORDER BY total_sales DESC LIMIT 1"
+            results = execute_query(query)
+            for row in results:
+                print(row)
+        elif choice == '10':
+            query = "SELECT salesman_id, SUM(sale_amount) AS total_sales FROM Hospital GROUP BY salesman_id ORDER BY total_sales ASC LIMIT 1"
+            results = execute_query(query)
+            for row in results:
+                print(row)
+        elif choice == '11':
+            query = "SELECT customer_id, SUM(sale_amount) AS total_purchases FROM Hospital GROUP BY customer_id ORDER BY total_purchases DESC LIMIT 1"
+            results = execute_query(query)
+            for row in results:
+                print(row)
+        elif choice == '12':
+            customer_id = input("Enter customer ID: ")
+            query = "SELECT AVG(sale_amount) FROM Hospital WHERE customer_id = ?"
+            results = execute_query(query, (customer_id,))
+            for row in results:
+                print(row)
+        elif choice == '13':
+            salesman_id = input("Enter salesman ID: ")
+            query = "SELECT AVG(sale_amount) FROM Hospital WHERE salesman_id = ?"
+            results = execute_query(query, (salesman_id,))
+            for row in results:
+                print(row)
+        elif choice == '14':
+            table = input("Enter table (Hospital, Salesmen, Customers): ")
+            if table == "Sales":
+                sale_amount = input("Enter sale amount: ")
+                salesman_id = input("Enter salesman ID: ")
+                customer_id = input("Enter customer ID: ")
+                query = "INSERT INTO Hospital (sale_amount, salesman_id, customer_id) VALUES (?, ?, ?)"
+                execute_insert_update_delete(query, (sale_amount, salesman_id, customer_id))
+            elif table == "Salesmen":
+                name = input("Enter name: ")
+                query = "INSERT INTO Salesmen (name) VALUES (?)"
+                execute_insert_update_delete(query, (name,))
+            elif table == "Customers":
+                name = input("Enter name: ")
+                email = input("Enter email: ")
+                query = "INSERT INTO Customers (name, email) VALUES (?, ?)"
+                execute_insert_update_delete(query, (name, email))
+            else:
+                print("Invalid table name.")
+        elif choice == '15':
+            table = input("Enter table (Hospital, Salesmen, Customers): ")
+            if table == "Sales":
+                sale_id = input("Enter sale ID: ")
+                sale_amount = input("Enter new sale amount: ")
+                query = "UPDATE Hospital SET sale_amount = ? WHERE sale_id = ?"
+                execute_insert_update_delete(query, (sale_amount, sale_id))
+            elif table == "Salesmen":
+                salesman_id = input("Enter salesman ID: ")
+                name = input("Enter new name: ")
+                query = "UPDATE Salesmen SET name = ? WHERE salesman_id = ?"
+                execute_insert_update_delete(query, (name, salesman_id))
+            elif table == "Customers":
+                customer_id = input("Enter customer ID: ")
+                name = input("Enter new name: ")
+                email = input("Enter new email: ")
+                query = "UPDATE Customers SET name = ?, email = ? WHERE customer_id = ?"
+                execute_insert_update_delete(query, (name, email, customer_id))
+            else:
+                print("Invalid table name.")
+        elif choice == '16':
+            table = input("Enter table (Sales, Salesmen, Customers): ")
+            if table == "Sales":
+                sale_id = input("Enter sale ID to delete: ")
+                query = "DELETE FROM Hospital WHERE sale_id = ?"
+                execute_insert_update_delete(query, (sale_id,))
+            elif table == "Salesmen":
+                salesman_id = input("Enter salesman ID to delete: ")
+                query = "DELETE FROM Salesmen WHERE salesman_id = ?"
+                execute_insert_update_delete(query, (salesman_id,))
+            elif table == "Customers":
+                customer_id = input("Enter customer ID to delete: ")
+                query = "DELETE FROM Customers WHERE customer_id = ?"
+                execute_insert_update_delete(query, (customer_id,))
+            else:
+                print("Invalid table name.")
+        elif choice == '17':
+            query = input("Enter the query to save results: ")
+            results = execute_query(query)
+            file_path = input("Enter the file path to save results: ")
+            save_results_to_file(results, file_path)
+        elif choice == '18':
             break
         else:
-            print("Invalid choice. Please try again.")
-
-    cursor.close()
-    conn.close()
+            print("Invalid choice, please try again.")
 
 
 if __name__ == "__main__":
